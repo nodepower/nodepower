@@ -2,10 +2,13 @@ pragma solidity ^0.4.13;
 
 import './MintingERC20.sol';
 import './SafeMath.sol';
+import './nodePhases.sol';
 
-contract Node is usingOraclize, MintingERC20 {
+contract Node is MintingERC20 {
 
     using SafeMath for uint256;
+
+    NodePhases public nodePhases;
 
     // Block token transfers till ICO end.
     bool public transferFrozen = true;
@@ -24,14 +27,18 @@ contract Node is usingOraclize, MintingERC20 {
         locked = _locked;
     }
 
-    // Allow / disallow token transfer.
-    function freezing(bool _transferFrozen) public onlyOwner {
-        transferFrozen = _transferFrozen;
+    function setNodePhases(address _nodePhases) public onlyOwner {
+        nodePhases = NodePhases(_nodePhases);
+    }
+
+    function unfreeze() public onlyOwner {
+        if (nodePhases != address(0) && nodePhases.isICOFinished()) {
+            transferFrozen = false;
+        }
     }
 
     function refund(uint256 _amount, address _address) public onlyMinters {
         require(_amount > 0 && address(_address) == 0x0);
-        transfer(_address, _amount);
 
         uint256 balance = balanceOf(_address);
         setBalance(_address, 0);
@@ -39,14 +46,10 @@ contract Node is usingOraclize, MintingERC20 {
     }
 
     function transfer(address _to, uint _value) public returns (bool) {
-        require(_value >= 0 && address(_to) != 0x0);
+        require(address(_to) != 0x0);
         require(!transferFrozen);
 
         return super.transfer(_to, _value);
-    }
-
-    function getPrecision() public constant returns (uint8) {
-        return decimals;
     }
 
 }

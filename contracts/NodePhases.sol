@@ -7,7 +7,7 @@ import './NodeAllocation.sol';
 import './SafeMath.sol';
 import './OraclizeAPI.sol';
 
-contract NodePhases is Ownable {
+contract NodePhases is usingOraclize, Ownable {
 
     using SafeMath for uint256;
 
@@ -16,10 +16,6 @@ contract NodePhases is Ownable {
     NodeAllocation public nodeAllocation;
 
     Phase[] public phases;
-
-    uint8 public currentPhase;
-
-    uint256 public investorsAmount;
 
     uint256 public collectedEthers;
 
@@ -35,6 +31,8 @@ contract NodePhases is Ownable {
 
     mapping (address => uint256) public icoEtherBalances;
 
+    mapping (address => bool) private investors;
+
     struct Phase {
         uint256 price;
         uint256 minInvest;
@@ -45,8 +43,8 @@ contract NodePhases is Ownable {
         bool isSucceed;
     }
 
-    modifier onlyNodeContracts() {
-        require( (msg.sender == address(node)) || (msg.sender == address(nodeAllocation)));
+    modifier onlyAllocationContract() {
+        require(msg.sender == address(nodeAllocation));
         _;
     }
 
@@ -77,9 +75,6 @@ contract NodePhases is Ownable {
         phases.push(Phase(_preIcoTokenPrice, _minPreICOInvest, _preIcoMinCap, _preIcoMaxCap, _preIcoSince, _preIcoTill, false));
         phases.push(Phase(_icoTokenPrice, _minIcoInvest, _icoMinCap, _icoMaxCap, _icoSince, _icoTill, false));
 
-        investorsAmount = 0;
-        collectedEthers = 0;
-        soldTokens = 0;
         priceUpdateAt = now;
 
         oraclize_setNetwork(networkID_auto);
@@ -100,16 +95,14 @@ contract NodePhases is Ownable {
             return false;
         }
 
-        if (setCurrentPhase(now) == false) {
-            return false;
-        }
+        uint8 currentPhase = getCurrentPhase(now);
 
         if (priceUpdateAt.add(3600) < now){
             update();
             priceUpdateAt = now;
         }
 
-        uint256 amount = getTokensAmount(_value);
+        uint256 amount = getTokensAmount(_value, currentPhase);
 
         if (amount == 0) {
             return false;
@@ -130,25 +123,25 @@ contract NodePhases is Ownable {
     function onSuccessfulBuy(address _address, uint256 _value, uint256 _amount) internal {
         collectedEthers = collectedEthers.add(_value);
         soldTokens = soldTokens.add(_amount);
-        increaseInvestorsAmount();
+        increaseInvestorsCount(_address);
 
         if (currentPhase == 1) {
             icoEtherBalances[_address] = icoEtherBalances[_address].add(_value);
         }
     }
 
-    function increaseInvestorsAmount() internal {
-        investorsAmount = investorsAmount.add(1);
+    function increaseInvestorsCount(address _address) internal {
+        investors[_address] = true;
     }
 
-    function getTokensAmount(uint256 _value) internal returns (uint256) {
-        if (_value == 0 || phases.length < currentPhase) {
+    function getTokensAmount(uint256 _value, uint8 _currentPhase) internal returns (uint256) {
+        if (_value == 0 || phases.length <= _currentPhase) {
             return uint256(0);
         }
 
-        Phase storage phase = phases[currentPhase];
+        Phase storage phase = phases[_currentPhase];
 
-        uint256 amount = _value.mul(uint256(10) ** node.getPrecision()).div(phase.price);
+        uint256 amount = _value.mul(uint256(10) ** node.decimals).div(phase.price);
 
         if (amount < phase.minInvest) {
             return uint256(0);
@@ -162,26 +155,25 @@ contract NodePhases is Ownable {
     }
 
     function getBonusAmount(uint256 _amount, uint256 time) internal returns (uint256) {
-        Phase storage phase = phases[currentPhase];
+        Phase storage preICO = phases[0];
+        Phase storage ICO = phases[1];
 
-        if (phase.since < time && phase.till > time) {
-            if (currentPhase == 0) {
-                return _amount.mul(50).div(100);
+        if (preICO.since < time && time < preICO.till) {
+            return _amount.mul(50).div(100);
+        }
+
+        if (ICO.since < time && time < ICO.till) {
+            if (time.sub(ICO.since) < 950400) {// 11d since ico => reward 30%;
+                return _amount.mul(30).div(100);
             }
-
-            if (currentPhase == 1) {
-                if (time.sub(phase.since) < 950400) {// 11d since ico => reward 30%;
-                    return _amount.mul(30).div(100);
-                }
-                else if (time.sub(phase.since) < 1814400) {// 21d since ico => reward 20%
-                    return _amount.mul(20).div(100);
-                }
-                else if (time.sub(phase.since) < 2678400) {// 31d since ico => reward 15%
-                    return _amount.mul(15).div(100);
-                }
-                else if (time.sub(phase.since) < 3542400) {// 41d since ico => reward 10%
-                    return _amount.mul(10).div(100);
-                }
+            else if (time.sub(ICO.since) < 1814400) {// 21d since ico => reward 20%
+                return _amount.mul(20).div(100);
+            }
+            else if (time.sub(ICO.since) < 2678400) {// 31d since ico => reward 15%
+                return _amount.mul(15).div(100);
+            }
+            else if (time.sub(ICO.since) < 3542400) {// 41d since ico => reward 10%
+                return _amount.mul(10).div(100);
             }
         }
 
@@ -205,7 +197,10 @@ contract NodePhases is Ownable {
 
     function setCurrentRate(uint256 _rate) public onlyOwner {
         require(_rate > 0);
-        tokenPrice = _rate;
+        for (uint i = 0; i < phases.length; i++) {
+            Phase storage phase = phases[i];
+            phase.price = _rate;
+        }
         priceUpdateAt = now;
     }
 
@@ -254,7 +249,7 @@ contract NodePhases is Ownable {
         bool status = (totalAmount != node.mint(_address, totalAmount));
 
         if (status) {
-            increaseInvestorsAmount();
+            increaseInvestorsCount(_address);
         }
 
         return status;
@@ -278,7 +273,7 @@ contract NodePhases is Ownable {
         bool status = (totalAmount != node.mint(_address, totalAmount));
 
         if (status) {
-            increaseInvestorsAmount();
+            increaseInvestorsCount(_address);
         }
 
         return status;
@@ -298,13 +293,14 @@ contract NodePhases is Ownable {
         bool status = (totalAmount != node.mint(_address, totalAmount));
 
         if (status) {
-            increaseInvestorsAmount();
+            increaseInvestorsCount(_address);
         }
 
         return status;
     }
 
-    function setCurrentPhase(uint256 time) public onlyNodeContracts returns (bool) {
+    function getCurrentPhase(uint256 time) public onlyAllocationContract returns (uint8) {
+
         for (uint8 i = 0; i < phases.length; i++) {
             Phase storage phase = phases[i];
             if (phase.since > time) {
@@ -314,20 +310,11 @@ contract NodePhases is Ownable {
             if (phase.till < time) {
                 continue;
             }
-            currentPhase = i;
 
-            return true;
+            return i;
         }
 
-        return false;
-    }
-
-    function mint(address _addr, uint256 _amount) public onlyNodeContracts returns (uint256) {
-        return node.mint(_addr, _amount);
-    }
-
-    function maxSupply() public constant returns (uint256) {
-        return node.maxSupply();
+        return phases.length;
     }
 
     function getTokens() public constant returns (uint256) {
@@ -335,7 +322,7 @@ contract NodePhases is Ownable {
     }
 
     function getAllInvestors() public constant returns (uint256) {
-        return investorsAmount;
+        return investors.length;
     }
 
     function getBalanceContract() public constant returns (uint256) {
@@ -383,8 +370,14 @@ contract NodePhases is Ownable {
         uint256 refundAmount = icoEtherBalances[msg.sender];
         node.refund(refundAmount, msg.sender);
         icoEtherBalances[msg.sender] = 0;
+        msg.sender.transfer(refundAmount);
 
         return true;
+    }
+
+    function isICOFinished() public constant returns (bool) {
+        Phase storage phase = phases[1];
+        return (phase.isSucceed || now > phases.till);
     }
 
     function() payable {
