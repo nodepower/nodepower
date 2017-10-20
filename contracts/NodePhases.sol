@@ -5,6 +5,7 @@ import './Ownable.sol';
 import './Node.sol';
 import './NodeAllocation.sol';
 import './SafeMath.sol';
+import './OraclizeAPI.sol';
 
 contract NodePhases is Ownable {
 
@@ -17,9 +18,18 @@ contract NodePhases is Ownable {
     Phase[] public phases;
 
     uint8 public currentPhase;
+
     uint256 public investorsAmount;
+
     uint256 public collectedEthers;
+
     uint256 public soldTokens;
+
+    uint256 public priceUpdateAt;
+
+    event newOraclizeQuery(string description);
+
+    event newNodePriceTicker(string price);
 
     event Refund(address holder, uint256 ethers, uint256 tokens);
 
@@ -43,19 +53,18 @@ contract NodePhases is Ownable {
     function NodePhases(
         address _node,
         address _nodeAllocation,
-
         uint256 _minPreICOInvest,
+        uint256 _preIcoTokenPrice,//0.0032835596 ethers
         uint256 _preIcoMinCap,
         uint256 _preIcoMaxCap,
         uint256 _preIcoSince,
         uint256 _preIcoTill,
-
         uint256 _minIcoInvest,
+        uint256 _icoTokenPrice,//0.0032835596 ethers
         uint256 _icoMinCap,
         uint256 _icoMaxCap,
         uint256 _icoSince,
         uint256 _icoTill
-
     ) {
         require(address(_node) != 0x0 && address(_nodeAllocation) != 0x0);
         node = Node(address(_node));
@@ -65,19 +74,24 @@ contract NodePhases is Ownable {
 
         require((_preIcoMaxCap < _icoMaxCap) && (_icoMaxCap < node.maxSupply()));
 
-        phases.push(Phase(node.tokenPrice(), _minPreICOInvest, _preIcoMinCap, _preIcoMaxCap, _preIcoSince, _preIcoTill, false));
-        phases.push(Phase(node.tokenPrice(), _minIcoInvest, _icoMinCap, _icoMaxCap, _icoSince, _icoTill, false));
+        phases.push(Phase(_preIcoTokenPrice, _minPreICOInvest, _preIcoMinCap, _preIcoMaxCap, _preIcoSince, _preIcoTill, false));
+        phases.push(Phase(_icoTokenPrice, _minIcoInvest, _icoMinCap, _icoMaxCap, _icoSince, _icoTill, false));
 
         investorsAmount = 0;
         collectedEthers = 0;
         soldTokens = 0;
+        priceUpdateAt = now;
+
+        oraclize_setNetwork(networkID_auto);
+        oraclize = OraclizeI(OAR.getAddress());
     }
 
-    function updatePrices() internal {
-        uint256 value = node.updateAndGetRate();
-        for (uint i = 0; i < phases.length; i++) {
-            Phase storage phase = phases[i];
-            phase.price = value;
+    function update() internal {
+        if (oraclize_getPrice('URL') > this.balance) {
+            newOraclizeQuery('Oraclize query was NOT sent, please add some ETH to cover for the query fee');
+        } else {
+            newOraclizeQuery('Oraclize query was sent, standing by for the answer..');
+            oraclize_query('URL', 'json(https://api.kraken.com/0/public/Ticker?pair=ETHUSD).result.XETHZUSD.c.0');
         }
     }
 
@@ -90,7 +104,10 @@ contract NodePhases is Ownable {
             return false;
         }
 
-        updatePrices();
+        if (priceUpdateAt.add(3600) < now){
+            update();
+            priceUpdateAt = now;
+        }
 
         uint256 amount = getTokensAmount(_value);
 
@@ -169,6 +186,27 @@ contract NodePhases is Ownable {
         }
 
         return uint256(0);
+    }
+
+    function __callback(bytes32, string _result, bytes) {
+        require(msg.sender == oraclize_cbAddress());
+
+        uint256 price = uint256(10 ** 23).div(parseInt(_result, 5));
+
+        require(price > 0);
+
+        for (uint i = 0; i < phases.length; i++) {
+            Phase storage phase = phases[i];
+            phase.price = price;
+        }
+
+        newNodePriceTicker(_result);
+    }
+
+    function setCurrentRate(uint256 _rate) public onlyOwner {
+        require(_rate > 0);
+        tokenPrice = _rate;
+        priceUpdateAt = now;
     }
 
     function setNode(address _node) public onlyOwner {
