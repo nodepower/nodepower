@@ -23,15 +23,17 @@ contract NodePhases is usingOraclize, Ownable {
 
     uint256 public priceUpdateAt;
 
+    uint256 public investorsCount;
+
+    mapping (address => uint256) public icoEtherBalances;
+
+    mapping (address => bool) private investors;
+
     event newOraclizeQuery(string description);
 
     event newNodePriceTicker(string price);
 
     event Refund(address holder, uint256 ethers, uint256 tokens);
-
-    mapping (address => uint256) public icoEtherBalances;
-
-    mapping (address => bool) private investors;
 
     struct Phase {
         uint256 price;
@@ -43,30 +45,23 @@ contract NodePhases is usingOraclize, Ownable {
         bool isSucceed;
     }
 
-    modifier onlyAllocationContract() {
-        require(msg.sender == address(nodeAllocation));
-        _;
-    }
-
     function NodePhases(
         address _node,
-        address _nodeAllocation,
         uint256 _minPreICOInvest,
-        uint256 _preIcoTokenPrice,//0.0032835596 ethers
+        uint256 _preIcoTokenPrice, //0.0032835596 ethers
         uint256 _preIcoMinCap,
         uint256 _preIcoMaxCap,
         uint256 _preIcoSince,
         uint256 _preIcoTill,
         uint256 _minIcoInvest,
-        uint256 _icoTokenPrice,//0.0032835596 ethers
+        uint256 _icoTokenPrice, //0.0032835596 ethers
         uint256 _icoMinCap,
         uint256 _icoMaxCap,
         uint256 _icoSince,
         uint256 _icoTill
     ) {
-        require(address(_node) != 0x0 && address(_nodeAllocation) != 0x0);
+        require(address(_node) != 0x0);
         node = Node(address(_node));
-        nodeAllocation = NodeAllocation(address(_nodeAllocation));
 
         require((_preIcoSince < _preIcoTill) && (_icoSince < _icoTill) && (_preIcoTill < _icoSince));
 
@@ -97,7 +92,11 @@ contract NodePhases is usingOraclize, Ownable {
 
         uint8 currentPhase = getCurrentPhase(now);
 
-        if (priceUpdateAt.add(3600) < now){
+        if (phases.length <= currentPhase) {
+            return false;
+        }
+
+        if (priceUpdateAt.add(3600) < now) {
             update();
             priceUpdateAt = now;
         }
@@ -113,25 +112,28 @@ contract NodePhases is usingOraclize, Ownable {
         bool status = (amount != node.mint(_address, amount));
 
         if (status) {
-            onSuccessfulBuy(_address, _value, amount);
-            nodeAllocation.allocate();
+            onSuccessfulBuy(_address, _value, amount, currentPhase);
+            nodeAllocation.allocate(currentPhase);
         }
 
         return status;
     }
 
-    function onSuccessfulBuy(address _address, uint256 _value, uint256 _amount) internal {
+    function onSuccessfulBuy(address _address, uint256 _value, uint256 _amount, uint8 _currentPhase) internal {
         collectedEthers = collectedEthers.add(_value);
         soldTokens = soldTokens.add(_amount);
         increaseInvestorsCount(_address);
 
-        if (currentPhase == 1) {
+        if (_currentPhase == 1) {
             icoEtherBalances[_address] = icoEtherBalances[_address].add(_value);
         }
     }
 
     function increaseInvestorsCount(address _address) internal {
-        investors[_address] = true;
+        if (address(_address) != 0x0 && investors[_address] == false) {
+            investors[_address] = true;
+            investorsCount = investorsCount.add(1);
+        }
     }
 
     function getTokensAmount(uint256 _value, uint8 _currentPhase) internal returns (uint256) {
@@ -141,7 +143,7 @@ contract NodePhases is usingOraclize, Ownable {
 
         Phase storage phase = phases[_currentPhase];
 
-        uint256 amount = _value.mul(uint256(10) ** node.decimals).div(phase.price);
+        uint256 amount = _value.mul(uint256(10) ** node.decimals()).div(phase.price);
 
         if (amount < phase.minInvest) {
             return uint256(0);
@@ -154,25 +156,26 @@ contract NodePhases is usingOraclize, Ownable {
         return amount;
     }
 
-    function getBonusAmount(uint256 _amount, uint256 time) internal returns (uint256) {
-        Phase storage preICO = phases[0];
-        Phase storage ICO = phases[1];
-
-        if (preICO.since < time && time < preICO.till) {
-            return _amount.mul(50).div(100);
+    function getBonusAmount(uint256 _amount, uint256 _time) internal returns (uint256) {
+        if (_amount == 0 || _time == 0) {
+            return uint256(0);
+        }
+        uint8 currentPhase = getCurrentPhase(_time);
+        if (phases.length <= currentPhase) {
+            return uint256(0);
         }
 
-        if (ICO.since < time && time < ICO.till) {
-            if (time.sub(ICO.since) < 950400) {// 11d since ico => reward 30%;
+        if (currentPhase == 0) {
+            return _amount.mul(50).div(100);
+        } else if (currentPhase == 1) {
+            Phase storage ICO = phases[1];
+            if (_time.sub(ICO.since) < 950400) {// 11d since ico => reward 30%;
                 return _amount.mul(30).div(100);
-            }
-            else if (time.sub(ICO.since) < 1814400) {// 21d since ico => reward 20%
+            } else if (_time.sub(ICO.since) < 1814400) {// 21d since ico => reward 20%
                 return _amount.mul(20).div(100);
-            }
-            else if (time.sub(ICO.since) < 2678400) {// 31d since ico => reward 15%
+            } else if (_time.sub(ICO.since) < 2678400) {// 31d since ico => reward 15%
                 return _amount.mul(15).div(100);
-            }
-            else if (time.sub(ICO.since) < 3542400) {// 41d since ico => reward 10%
+            } else if (_time.sub(ICO.since) < 3542400) {// 41d since ico => reward 10%
                 return _amount.mul(10).div(100);
             }
         }
@@ -213,9 +216,9 @@ contract NodePhases is usingOraclize, Ownable {
     }
 
     function setPhase(uint8 _phaseId, uint256 _since, uint256 _till, uint256 _price, uint256 _softCap, uint256 _hardCap) public onlyOwner returns (bool) {
-        require( (phases.length > _phaseId) && (_price > 0) );
-        require( (_till > _since) && (_since > 0) );
-        require( (node.maxSupply() > _hardCap) && (_hardCap > _softCap)  && (_softCap >= 0) );
+        require((phases.length > _phaseId) && (_price > 0));
+        require((_till > _since) && (_since > 0));
+        require((node.maxSupply() > _hardCap) && (_hardCap > _softCap) && (_softCap >= 0));
 
         Phase storage phase = phases[_phaseId];
 
@@ -236,10 +239,6 @@ contract NodePhases is usingOraclize, Ownable {
             return false;
         }
 
-        if (setCurrentPhase(now) == false) {
-            return false;
-        }
-
         uint256 totalAmount = _tokens.add(getBonusAmount(_tokens, now));
 
         if (getTokens().add(totalAmount) > node.maxSupply()) {
@@ -256,11 +255,7 @@ contract NodePhases is usingOraclize, Ownable {
     }
 
     function sendToAddressWithTime(address _address, uint256 _tokens, uint256 _time) public onlyOwner returns (bool) {
-        if (_tokens < 1 || address(_address) == 0x0 || _time < 1) {
-            return false;
-        }
-
-        if (setCurrentPhase(_time) == false) {
+        if (_tokens == 0 || address(_address) == 0x0 || _time == 0) {
             return false;
         }
 
@@ -278,9 +273,9 @@ contract NodePhases is usingOraclize, Ownable {
 
         return status;
     }
-    //todo check uint256 _bonus - % or amount
+
     function sendToAddressWithBonus(address _address, uint256 _tokens, uint256 _bonus) public onlyOwner returns (bool) {
-        if (_tokens < 1 || address(_address) == 0x0 || _bonus < 1) {
+        if (_tokens == 0 || address(_address) == 0x0 || _bonus == 0) {
             return false;
         }
 
@@ -299,22 +294,24 @@ contract NodePhases is usingOraclize, Ownable {
         return status;
     }
 
-    function getCurrentPhase(uint256 time) public onlyAllocationContract returns (uint8) {
-
+    function getCurrentPhase(uint256 _time) public returns (uint8) {
+        if (_time == 0) {
+            return uint8(phases.length);
+        }
         for (uint8 i = 0; i < phases.length; i++) {
             Phase storage phase = phases[i];
-            if (phase.since > time) {
+            if (phase.since > _time) {
                 continue;
             }
 
-            if (phase.till < time) {
+            if (phase.till < _time) {
                 continue;
             }
 
             return i;
         }
 
-        return phases.length;
+        return uint8(phases.length);
     }
 
     function getTokens() public constant returns (uint256) {
@@ -322,7 +319,7 @@ contract NodePhases is usingOraclize, Ownable {
     }
 
     function getAllInvestors() public constant returns (uint256) {
-        return investors.length;
+        return investorsCount;
     }
 
     function getBalanceContract() public constant returns (uint256) {
@@ -330,7 +327,7 @@ contract NodePhases is usingOraclize, Ownable {
     }
 
     function isSucceed(uint8 phaseId) public returns (bool) {
-        if (phases.length < phaseId) {
+        if (phases.length <= phaseId) {
             return false;
         }
 
@@ -338,10 +335,6 @@ contract NodePhases is usingOraclize, Ownable {
 
         if (phase.isSucceed == true) {
             return true;
-        }
-
-        if (phase.till > now) {
-            return false;
         }
 
         if (phase.softCap != 0 && phase.softCap > getTokens()) {
@@ -361,7 +354,7 @@ contract NodePhases is usingOraclize, Ownable {
         if (icoPhase.till > now) {
             return false;
         }
-        if (icoPhase.till < now && icoPhase.softCap <= getTokens()) {
+        if (icoPhase.softCap <= getTokens()) {
             return false;
         }
         if (icoEtherBalances[msg.sender] == 0) {
@@ -375,9 +368,13 @@ contract NodePhases is usingOraclize, Ownable {
         return true;
     }
 
-    function isICOFinished() public constant returns (bool) {
-        Phase storage phase = phases[1];
-        return (phase.isSucceed || now > phases.till);
+    function isFinished(uint8 phaseId) public constant returns (bool) {
+        if (phases.length <= phaseId) {
+            return false;
+        }
+        Phase storage phase = phases[phaseId];
+
+        return (phase.isSucceed || now > phase.till);
     }
 
     function() payable {

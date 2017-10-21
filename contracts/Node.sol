@@ -2,7 +2,7 @@ pragma solidity ^0.4.13;
 
 import './MintingERC20.sol';
 import './SafeMath.sol';
-import './nodePhases.sol';
+import './NodePhases.sol';
 
 contract Node is MintingERC20 {
 
@@ -32,13 +32,13 @@ contract Node is MintingERC20 {
     }
 
     function unfreeze() public onlyOwner {
-        if (nodePhases != address(0) && nodePhases.isICOFinished()) {
+        if (nodePhases != address(0) && nodePhases.isFinished(1)) {
             transferFrozen = false;
         }
     }
 
     function refund(uint256 _amount, address _address) public onlyMinters {
-        require(_amount > 0 && address(_address) == 0x0);
+        require(_amount != 0 && address(_address) != 0x0);
 
         uint256 balance = balanceOf(_address);
         setBalance(_address, 0);
@@ -46,10 +46,15 @@ contract Node is MintingERC20 {
     }
 
     function transfer(address _to, uint _value) public returns (bool) {
-        require(address(_to) != 0x0);
         require(!transferFrozen);
 
         return super.transfer(_to, _value);
+    }
+
+    function transferFrom(address _from, address _to, uint _value) public returns (bool success) {
+        require(!transferFrozen);
+
+        return super.transferFrom(_from, _to, _value);
     }
 
 }
