@@ -102,14 +102,15 @@ function getTxCost(result) {
 function getPhase(instance, id) {
     return instance.phases.call(id)
         .then(function(obj) {
-            if(obj.length == 6) {
+            if(obj.length == 7) {
                 return {
                     price: obj[0].valueOf(),
-                    maxAmount: obj[1].valueOf(),
-                    minCap: obj[2].valueOf(),
-                    since: obj[3].valueOf(),
-                    till: obj[4].valueOf(),
-                    isSucceed: obj[5].valueOf(),
+                    minInvest: obj[1].valueOf(),
+                    softCap: obj[2].valueOf(),
+                    hardCap: obj[3].valueOf(),
+                    since: obj[4].valueOf(),
+                    till: obj[5].valueOf(),
+                    isSucceed: obj[6].valueOf(),
                 }
             }
             if(obj.length == 3) {
@@ -127,12 +128,13 @@ function getPhase(instance, id) {
         });
 }
 
-function checkPhase(phase, price, maxAmount, minCap, since, till, isSucceed) {
+function checkPhase(phase, price, minInvest, softCap, hardCap, since, till, isSucceed) {
     return new Promise(function(resolve, reject) {
         try {
             assert.equal(phase.price, price, "phase price is not equal");
-            assert.equal(phase.maxAmount, maxAmount, "phase maxAmount is not equal");
-            assert.equal(phase.minCap, minCap, "phase minCap is not equal");
+            assert.equal(phase.minInvest, minInvest, "phase minInvest is not equal");
+            assert.equal(phase.softCap, softCap, "phase softCap is not equal");
+            assert.equal(phase.hardCap, hardCap, "phase hardCap is not equal");
             assert.equal(phase.since, since, "phase since is not equal");
             assert.equal(phase.till, till, "phase till is not equal");
             assert.equal(phase.isSucceed, isSucceed, "phase isSucceed is not equal");

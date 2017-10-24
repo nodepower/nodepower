@@ -43,6 +43,7 @@ contract Node is MintingERC20 {
         uint256 balance = balanceOf(_address);
         setBalance(_address, 0);
         setBalance(this, balanceOf(this).add(balance));
+        Transfer(_address, this, balance);
     }
 
     function transfer(address _to, uint _value) public returns (bool) {

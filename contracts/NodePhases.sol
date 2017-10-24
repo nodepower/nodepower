@@ -25,6 +25,8 @@ contract NodePhases is usingOraclize, Ownable {
 
     uint256 public investorsCount;
 
+    uint256 public lastDistributedAmount;
+
     mapping (address => uint256) public icoEtherBalances;
 
     mapping (address => bool) private investors;
@@ -47,14 +49,11 @@ contract NodePhases is usingOraclize, Ownable {
 
     function NodePhases(
         address _node,
-        uint256 _minPreICOInvest,
-        uint256 _preIcoTokenPrice, //0.0032835596 ethers
-        uint256 _preIcoMinCap,
+        uint256 _minInvest,
+        uint256 _tokenPrice, //0.0032835596 ethers
         uint256 _preIcoMaxCap,
         uint256 _preIcoSince,
         uint256 _preIcoTill,
-        uint256 _minIcoInvest,
-        uint256 _icoTokenPrice, //0.0032835596 ethers
         uint256 _icoMinCap,
         uint256 _icoMaxCap,
         uint256 _icoSince,
@@ -67,8 +66,8 @@ contract NodePhases is usingOraclize, Ownable {
 
         require((_preIcoMaxCap < _icoMaxCap) && (_icoMaxCap < node.maxSupply()));
 
-        phases.push(Phase(_preIcoTokenPrice, _minPreICOInvest, _preIcoMinCap, _preIcoMaxCap, _preIcoSince, _preIcoTill, false));
-        phases.push(Phase(_icoTokenPrice, _minIcoInvest, _icoMinCap, _icoMaxCap, _icoSince, _icoTill, false));
+        phases.push(Phase(_tokenPrice, _minInvest, 0, _preIcoMaxCap, _preIcoSince, _preIcoTill, false));
+        phases.push(Phase(_tokenPrice, _minInvest, _icoMinCap, _icoMaxCap, _icoSince, _icoTill, false));
 
         priceUpdateAt = now;
 
@@ -109,11 +108,11 @@ contract NodePhases is usingOraclize, Ownable {
 
         amount = amount.add(getBonusAmount(amount, now));
 
-        bool status = (amount != node.mint(_address, amount));
+        bool status = (amount == node.mint(_address, amount));
 
         if (status) {
             onSuccessfulBuy(_address, _value, amount, currentPhase);
-            nodeAllocation.allocate(currentPhase);
+            allocate(currentPhase);
         }
 
         return status;
@@ -183,6 +182,26 @@ contract NodePhases is usingOraclize, Ownable {
         return uint256(0);
     }
 
+    function getCurrentPhase(uint256 _time) public returns (uint8) {
+        if (_time == 0) {
+            return uint8(phases.length);
+        }
+        for (uint8 i = 0; i < phases.length; i++) {
+            Phase storage phase = phases[i];
+            if (phase.since > _time) {
+                continue;
+            }
+
+            if (phase.till < _time) {
+                continue;
+            }
+
+            return i;
+        }
+
+        return uint8(phases.length);
+    }
+
     function __callback(bytes32, string _result, bytes) {
         require(msg.sender == oraclize_cbAddress());
 
@@ -233,22 +252,20 @@ contract NodePhases is usingOraclize, Ownable {
 
         return true;
     }
-    //todo check modifiyer - onlyOwner or other
+
     function sendToAddress(address _address, uint256 _tokens) public onlyOwner returns (bool) {
         if (_tokens == 0 || address(_address) == 0x0) {
             return false;
         }
-
         uint256 totalAmount = _tokens.add(getBonusAmount(_tokens, now));
-
         if (getTokens().add(totalAmount) > node.maxSupply()) {
             return false;
         }
 
         bool status = (totalAmount != node.mint(_address, totalAmount));
-
         if (status) {
-            increaseInvestorsCount(_address);
+            //todo is manual token transfering increasing InvestorsCount
+//            increaseInvestorsCount(_address);
         }
 
         return status;
@@ -268,7 +285,8 @@ contract NodePhases is usingOraclize, Ownable {
         bool status = (totalAmount != node.mint(_address, totalAmount));
 
         if (status) {
-            increaseInvestorsCount(_address);
+            //todo is manual token transfering increasing InvestorsCount
+//            increaseInvestorsCount(_address);
         }
 
         return status;
@@ -288,34 +306,19 @@ contract NodePhases is usingOraclize, Ownable {
         bool status = (totalAmount != node.mint(_address, totalAmount));
 
         if (status) {
-            increaseInvestorsCount(_address);
+            //todo is manual token transfering increasing InvestorsCount
+//            increaseInvestorsCount(_address);
         }
 
         return status;
     }
 
-    function getCurrentPhase(uint256 _time) public returns (uint8) {
-        if (_time == 0) {
-            return uint8(phases.length);
-        }
-        for (uint8 i = 0; i < phases.length; i++) {
-            Phase storage phase = phases[i];
-            if (phase.since > _time) {
-                continue;
-            }
-
-            if (phase.till < _time) {
-                continue;
-            }
-
-            return i;
-        }
-
-        return uint8(phases.length);
-    }
-
     function getTokens() public constant returns (uint256) {
         return node.totalSupply();
+    }
+
+    function getSoldToken() public constant returns (uint256) {
+        return soldTokens;
     }
 
     function getAllInvestors() public constant returns (uint256) {
@@ -337,13 +340,17 @@ contract NodePhases is usingOraclize, Ownable {
             return true;
         }
 
+        if (phase.till > now) {
+            return false;
+        }
+
         if (phase.softCap != 0 && phase.softCap > getTokens()) {
             return false;
         }
 
         phase.isSucceed = true;
         if (phaseId == 1) {
-            nodeAllocation.allocateBounty();
+            allocateBounty();
         }
 
         return true;
@@ -381,4 +388,63 @@ contract NodePhases is usingOraclize, Ownable {
         bool status = buy(msg.sender, msg.value);
         require(status == true);
     }
+
+    function allocate(uint8 _currentPhase) internal {
+        if (_currentPhase == 0) {
+            uint8 length = nodeAllocation.getPreICOLength();
+            require(length > 0);
+
+            uint256 amount = this.balance;
+            for (uint8 i = 0; i < length; i++) {
+                if ((i + 1) == length) {
+                    nodeAllocation.getPreICOAddress(i).transfer(this.balance);
+                }
+                else {
+                    nodeAllocation.getPreICOAddress(i).transfer(amount.mul(nodeAllocation.getPreICOPercentage(i)).div(100));
+                }
+            }
+        }
+        if (_currentPhase == 1) {
+            length = nodeAllocation.getThresholdsLength();
+            require(uint8(length) > 0);
+            for (uint8 j = 0; j < length; j++) {
+                uint256 threshold = nodeAllocation.getThreshold(j);
+                if ((threshold > lastDistributedAmount) && (soldTokens >= threshold)) {
+                    lastDistributedAmount = threshold;
+                    allocateICOEthers();
+                }
+            }
+        }
+    }
+
+    function allocateICOEthers() internal returns (bool) {
+        if (lastDistributedAmount == node.totalSupply()) {
+            return false;
+        }
+
+        uint8 length = nodeAllocation.getICOLength();
+        require(length > 0);
+        uint256 amount = this.balance;
+        for (uint8 i = 0; i < length; i++) {
+            if ((i + 1) == length) {
+                nodeAllocation.getICOAddress(i).transfer(this.balance);
+            }
+            else {
+                nodeAllocation.getICOAddress(i).transfer(amount.mul(nodeAllocation.getICOPercentage(i)).div(100));
+            }
+        }
+
+        return true;
+    }
+
+    function allocateBounty() internal {
+        if (isFinished(1)) {
+            allocateICOEthers();
+            uint256 amount = node.maxSupply().mul(2).div(100);
+            uint256 mintedAmount = node.mint(nodeAllocation.bountyAddress(), amount);
+            require(mintedAmount == amount);
+            lastDistributedAmount = node.maxSupply();
+        }
+    }
+
 }

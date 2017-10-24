@@ -1,78 +1,175 @@
-var token = artifacts.require("./Node.sol"),
-    phases = artifacts.require("./NodePhases.sol"),
-    allocation = artifacts.require("./NodeAllocation.sol");
+var node = artifacts.require('./Node.sol'),
+    nodePhases = artifacts.require('./NodePhases.sol'),
+    nodeAllocation = artifacts.require('./NodeAllocation.sol');
 
-var utils = require("./utils"),
-    bigNumber = require('bignumber.js');
+var Utils = require('./Utils'),
+    BigNumber = require('bignumber.js');
 
 var precision = 100,
+    now = parseInt(new Date().getTime() / 1000),
     bountyAddress = web3.eth.accounts[5],
     allocationAddress1 = web3.eth.accounts[6],
     allocationAddress2 = web3.eth.accounts[7],
     allocationAddress3 = web3.eth.accounts[8];
 
 contract('Node', function (accounts) {
-    it("deploy contracts & check contructors data", function () {
-        var node, nodePhases, nodeAllocation,
-        preICOSince = parseInt(new Date().getTime() / 1000),
-        preICOTill = preICOSince + 2629743,
-        iCOSince = parseInt(new Date().getTime() / 1000),
-        iCOTill = iCOSince + 2629743;
+    let token;
 
-        return token.new(
-            new bigNumber(10000000).mul(precision),
+    beforeEach(async function () {
+        token = await node.new(
+            new BigNumber(10000000).mul(precision),
             'NODE',
             'NODE',
             2,
-            new bigNumber(3283559600000000),
             false
         )
-            .then((instance) => {
-                node = instance
-            })
-
-            .then(() => {
-                    return allocation.new(
-                        node.address,
-                        bountyAddress,
-                        [
-                            allocationAddress1,
-                            allocationAddress2
-                        ],
-                        [
-                            allocationAddress1,
-                            allocationAddress2,
-                            allocationAddress3
-                        ],
-                        [
-                            new bigNumber(1000000).mul(precision),
-                            new bigNumber(3000000).mul(precision),
-                            new bigNumber(5000000).mul(precision),
-                            new bigNumber(7000000).mul(precision),
-                        ]
-                    )
-                }
-            )
-            .then((instance) => {
-                nodeAllocation = instance
-            })
-            .then(() => {
-                    return phases.new(
-                        node.address,
-                        nodeAllocation.address,
-                        new bigNumber(10).mul(precision),
-                        new bigNumber(0).mul(precision),
-                        new bigNumber(750000).mul(precision),
-                        preICOSince,
-                        preICOTill,
-                        new bigNumber(10).mul(precision),
-                        new bigNumber(1000000).mul(precision),
-                        new bigNumber(9800000).mul(precision),
-                        iCOSince,
-                        iCOTill
-                    )
-                }
-            )
     });
+
+    it('deploy contract & check constructor data', async function () {
+
+        let totalSupply = await token.totalSupply.call()
+        assert.equal(totalSupply.valueOf(), new BigNumber('0').valueOf(), 'total supply is not equal')
+
+        let maxSupply = await token.maxSupply.call()
+        assert.equal(maxSupply.valueOf(), new BigNumber(10000000).mul(precision).valueOf(), 'max supply is not equal')
+
+        let standard = await token.standard.call()
+        assert.equal(standard.valueOf(), 'Node 0.1', 'standard is not equal')
+
+        let name = await token.name.call()
+        assert.equal(name.valueOf(), 'NODE', 'name is not equal')
+
+        let symbol = await token.symbol.call()
+        assert.equal(symbol.valueOf(), 'NODE', 'symbol is not equal')
+
+        let decimals = await token.decimals.call()
+        assert.equal(decimals.valueOf(), 2, 'decimals is not equal')
+
+    });
+
+    it('check setLocked, check if token transfers frozen', async function () {
+        let phases = await nodePhases.new(
+            token.address,
+            new BigNumber(10).mul(precision),
+            new BigNumber(3283559600000000),
+            new BigNumber(750000).mul(precision),
+            now - 3600 * 24 * 3,
+            now - 3600 * 24 * 2,
+            new BigNumber(0).mul(precision),
+            new BigNumber(9800000).mul(precision),
+            now - 3600 * 24,
+            now - 3600
+        )
+
+        let allocation = await nodeAllocation.new(
+            token.address,
+            phases.address,
+            bountyAddress,
+            [allocationAddress1, allocationAddress2],
+            [allocationAddress1, allocationAddress2, allocationAddress3],
+            [new BigNumber(1000000).mul(precision), new BigNumber(3000000).mul(precision), new BigNumber(5000000).mul(precision), new BigNumber(7000000).mul(precision)]
+        )
+
+        await token.setNodePhases(phases.address)
+
+        let locked = await token.locked.call()
+        assert.equal(locked.valueOf(), false, 'locked is not equal')
+
+        await token.setLocked(true, {from: accounts[1]})
+            .then(Utils.receiptShouldFailed)
+            .catch(Utils.catchReceiptShouldFailed)
+
+        await token.setLocked(true)
+
+        locked = await token.locked.call()
+        assert.equal(locked.valueOf(), true, 'locked is not equal')
+
+        await token.setLocked(false)
+
+        locked = await token.locked.call()
+        assert.equal(locked.valueOf(), false, 'locked is not equal')
+
+        await token.mint(accounts[0], 10000)
+            .then(() => Utils.balanceShouldEqualTo(token, accounts[0], 10000))
+
+        await token.transfer(accounts[1], 1000)
+            .then(Utils.receiptShouldFailed)
+            .catch(Utils.catchReceiptShouldFailed)
+            .then(() => Utils.balanceShouldEqualTo(token, accounts[1], 0))
+            .then(() => Utils.balanceShouldEqualTo(token, accounts[0], 10000))
+
+        await token.transferFrom(accounts[0], accounts[1], 1000)
+            .then(Utils.receiptShouldFailed)
+            .catch(Utils.catchReceiptShouldFailed)
+            .then(() => Utils.balanceShouldEqualTo(token, accounts[1], 0))
+            .then(() => Utils.balanceShouldEqualTo(token, accounts[0], 10000))
+
+    })
+
+    it('check setNodePhases, unfreeze, check if token transfers frozen', async function () {
+        let phases = await nodePhases.new(
+            token.address,
+            new BigNumber(10).mul(precision),
+            new BigNumber(3283559600000000),
+            new BigNumber(750000).mul(precision),
+            now - 3600 * 24 * 3,
+            now - 3600 * 24 * 2,
+            new BigNumber(0).mul(precision),
+            new BigNumber(9800000).mul(precision),
+            now - 3600 * 24,
+            now - 3600
+        )
+
+        await token.setNodePhases(phases.address)
+
+        await Utils.getPhase(phases, 1)
+            .then((phase) => Utils.checkPhase(
+                phase,
+                new BigNumber(3283559600000000),
+                new BigNumber(10).mul(precision),
+                new BigNumber(0).mul(precision),
+                new BigNumber(9800000).mul(precision),
+                now - 3600 * 24,
+                now - 3600,
+                false
+            ))
+
+        await phases.isSucceed(1)
+            .then(Utils.receiptShouldSucceed)
+
+        await Utils.getPhase(phases, 1)
+            .then((phase) => Utils.checkPhase(
+                phase,
+                new BigNumber(3283559600000000),
+                new BigNumber(10).mul(precision),
+                new BigNumber(0).mul(precision),
+                new BigNumber(9800000).mul(precision),
+                now - 3600 * 24,
+                now - 3600,
+                true
+            ))
+
+        let transferFrozen = await token.transferFrozen.call()
+        assert.equal(transferFrozen.valueOf(), true, 'transferFrozen is not equal')
+
+        await token.unfreeze()
+
+        transferFrozen = await token.transferFrozen.call()
+        assert.equal(transferFrozen.valueOf(), false, 'transferFrozen is not equal')
+
+        await token.mint(accounts[0], 10000)
+            .then(() => Utils.balanceShouldEqualTo(token, accounts[0], 10000))
+
+        await token.transfer(accounts[1], 1000)
+            .then(Utils.receiptShouldSucceed)
+            .then(() => Utils.balanceShouldEqualTo(token, accounts[1], 1000))
+            .then(() => Utils.balanceShouldEqualTo(token, accounts[0], 9000))
+
+        await token.transferFrom(accounts[0], accounts[1], 1000)
+            .catch(Utils.receiptShouldSucceed)
+            .then(() => Utils.balanceShouldEqualTo(token, accounts[1], 1000))
+            .then(() => Utils.balanceShouldEqualTo(token, accounts[0], 9000))
+
+    })
 
 });
