@@ -37,8 +37,8 @@ contract Node is MintingERC20 {
         }
     }
 
-    function refund(uint256 _amount, address _address) public onlyMinters {
-        require(_amount != 0 && address(_address) != 0x0);
+    function refund(address _address) public onlyMinters {
+        require(address(_address) != 0x0);
 
         uint256 balance = balanceOf(_address);
         setBalance(_address, 0);

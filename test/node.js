@@ -61,16 +61,9 @@ contract('Node', function (accounts) {
             now - 3600
         )
 
-        let allocation = await nodeAllocation.new(
-            token.address,
-            phases.address,
-            bountyAddress,
-            [allocationAddress1, allocationAddress2],
-            [allocationAddress1, allocationAddress2, allocationAddress3],
-            [new BigNumber(1000000).mul(precision), new BigNumber(3000000).mul(precision), new BigNumber(5000000).mul(precision), new BigNumber(7000000).mul(precision)]
-        )
-
         await token.setNodePhases(phases.address)
+
+        await token.addMinter(phases.address);
 
         let locked = await token.locked.call()
         assert.equal(locked.valueOf(), false, 'locked is not equal')
@@ -114,7 +107,7 @@ contract('Node', function (accounts) {
             new BigNumber(750000).mul(precision),
             now - 3600 * 24 * 3,
             now - 3600 * 24 * 2,
-            new BigNumber(0).mul(precision),
+            new BigNumber(1000000).mul(precision),
             new BigNumber(9800000).mul(precision),
             now - 3600 * 24,
             now - 3600
@@ -122,31 +115,18 @@ contract('Node', function (accounts) {
 
         await token.setNodePhases(phases.address)
 
+        await token.addMinter(phases.address);
+
         await Utils.getPhase(phases, 1)
             .then((phase) => Utils.checkPhase(
                 phase,
                 new BigNumber(3283559600000000),
                 new BigNumber(10).mul(precision),
-                new BigNumber(0).mul(precision),
+                new BigNumber(1000000).mul(precision),
                 new BigNumber(9800000).mul(precision),
                 now - 3600 * 24,
                 now - 3600,
                 false
-            ))
-
-        await phases.isSucceed(1)
-            .then(Utils.receiptShouldSucceed)
-
-        await Utils.getPhase(phases, 1)
-            .then((phase) => Utils.checkPhase(
-                phase,
-                new BigNumber(3283559600000000),
-                new BigNumber(10).mul(precision),
-                new BigNumber(0).mul(precision),
-                new BigNumber(9800000).mul(precision),
-                now - 3600 * 24,
-                now - 3600,
-                true
             ))
 
         let transferFrozen = await token.transferFrozen.call()

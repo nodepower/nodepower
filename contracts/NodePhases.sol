@@ -333,21 +333,16 @@ contract NodePhases is usingOraclize, Ownable {
         if (phases.length <= phaseId) {
             return false;
         }
-
         Phase storage phase = phases[phaseId];
-
         if (phase.isSucceed == true) {
             return true;
         }
-
         if (phase.till > now) {
             return false;
         }
-
         if (phase.softCap != 0 && phase.softCap > getTokens()) {
             return false;
         }
-
         phase.isSucceed = true;
         if (phaseId == 1) {
             allocateBounty();
@@ -361,14 +356,14 @@ contract NodePhases is usingOraclize, Ownable {
         if (icoPhase.till > now) {
             return false;
         }
-        if (icoPhase.softCap <= getTokens()) {
+        if (icoPhase.softCap < getTokens()) {
             return false;
         }
         if (icoEtherBalances[msg.sender] == 0) {
             return false;
         }
         uint256 refundAmount = icoEtherBalances[msg.sender];
-        node.refund(refundAmount, msg.sender);
+        node.refund(msg.sender);
         icoEtherBalances[msg.sender] = 0;
         msg.sender.transfer(refundAmount);
 
