@@ -75,8 +75,8 @@ contract NodePhases is usingOraclize, Ownable {
 
         priceUpdateAt = now;
 
-//        oraclize_setNetwork(networkID_auto);
-//        oraclize = OraclizeI(OAR.getAddress());
+        oraclize_setNetwork(networkID_auto);
+        oraclize = OraclizeI(OAR.getAddress());
     }
 
     function update() internal {
