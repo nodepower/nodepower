@@ -23,7 +23,7 @@ contract Node is MintingERC20 {
         standard = 'Node 0.1';
     }
 
-    function setLocked(bool _locked) onlyOwner {
+    function setLocked(bool _locked) public onlyOwner {
         locked = _locked;
     }
 
