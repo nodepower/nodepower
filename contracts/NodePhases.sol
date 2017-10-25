@@ -17,6 +17,10 @@ contract NodePhases is usingOraclize, Ownable {
 
     Phase[] public phases;
 
+    uint256 public constant HOUR = 3600;
+
+    uint256 public constant DAY = 86400;
+
     uint256 public collectedEthers;
 
     uint256 public soldTokens;
@@ -31,9 +35,9 @@ contract NodePhases is usingOraclize, Ownable {
 
     mapping (address => bool) private investors;
 
-    event newOraclizeQuery(string description);
+    event NewOraclizeQuery(string description);
 
-    event newNodePriceTicker(string price);
+    event NewNodePriceTicker(string price);
 
     event Refund(address holder, uint256 ethers, uint256 tokens);
 
@@ -62,7 +66,7 @@ contract NodePhases is usingOraclize, Ownable {
         require(address(_node) != 0x0);
         node = Node(address(_node));
 
-        require((_preIcoSince < _preIcoTill) && (_icoSince < _icoTill) && (_preIcoTill < _icoSince));
+        require((_preIcoSince < _preIcoTill) && (_icoSince < _icoTill) && (_preIcoTill <= _icoSince));
 
         require((_preIcoMaxCap < _icoMaxCap) && (_icoMaxCap < node.maxSupply()));
 
@@ -71,15 +75,15 @@ contract NodePhases is usingOraclize, Ownable {
 
         priceUpdateAt = now;
 
-        oraclize_setNetwork(networkID_auto);
-        oraclize = OraclizeI(OAR.getAddress());
+//        oraclize_setNetwork(networkID_auto);
+//        oraclize = OraclizeI(OAR.getAddress());
     }
 
     function update() internal {
         if (oraclize_getPrice('URL') > this.balance) {
-            newOraclizeQuery('Oraclize query was NOT sent, please add some ETH to cover for the query fee');
+            NewOraclizeQuery('Oraclize query was NOT sent, please add some ETH to cover for the query fee');
         } else {
-            newOraclizeQuery('Oraclize query was sent, standing by for the answer..');
+            NewOraclizeQuery('Oraclize query was sent, standing by for the answer..');
             oraclize_query('URL', 'json(https://api.kraken.com/0/public/Ticker?pair=ETHUSD).result.XETHZUSD.c.0');
         }
     }
@@ -168,13 +172,13 @@ contract NodePhases is usingOraclize, Ownable {
             return _amount.mul(50).div(100);
         } else if (currentPhase == 1) {
             Phase storage ICO = phases[1];
-            if (_time.sub(ICO.since) < 950400) {// 11d since ico => reward 30%;
+            if (_time.sub(ICO.since) < 11 * DAY) {// 11d since ico => reward 30%;
                 return _amount.mul(30).div(100);
-            } else if (_time.sub(ICO.since) < 1814400) {// 21d since ico => reward 20%
+            } else if (_time.sub(ICO.since) < 21 * DAY) {// 21d since ico => reward 20%
                 return _amount.mul(20).div(100);
-            } else if (_time.sub(ICO.since) < 2678400) {// 31d since ico => reward 15%
+            } else if (_time.sub(ICO.since) < 31 * DAY) {// 31d since ico => reward 15%
                 return _amount.mul(15).div(100);
-            } else if (_time.sub(ICO.since) < 3542400) {// 41d since ico => reward 10%
+            } else if (_time.sub(ICO.since) < 41 * DAY) {// 41d since ico => reward 10%
                 return _amount.mul(10).div(100);
             }
         }
@@ -214,7 +218,7 @@ contract NodePhases is usingOraclize, Ownable {
             phase.price = price;
         }
 
-        newNodePriceTicker(_result);
+        NewNodePriceTicker(_result);
     }
 
     function setCurrentRate(uint256 _rate) public onlyOwner {
@@ -363,9 +367,10 @@ contract NodePhases is usingOraclize, Ownable {
             return false;
         }
         uint256 refundAmount = icoEtherBalances[msg.sender];
-        node.refund(msg.sender);
+        uint256 tokens = node.buyBack(msg.sender);
         icoEtherBalances[msg.sender] = 0;
         msg.sender.transfer(refundAmount);
+        Refund(msg.sender, refundAmount, tokens);
 
         return true;
     }
