@@ -3,11 +3,10 @@ pragma solidity ^0.4.13;
 import "./ERC20.sol";
 import './SafeMath.sol';
 
-    /*
-    This contract manages the minters and the modifier to allow mint to happen only if called by minters
-    This contract contains basic minting functionality though
-    */
-
+/*
+This contract manages the minters and the modifier to allow mint to happen only if called by minters
+This contract contains basic minting functionality though
+*/
 contract MintingERC20 is ERC20 {
 
     using SafeMath for uint256;

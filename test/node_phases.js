@@ -2,7 +2,7 @@ var node = artifacts.require("./Node.sol");
 var nodePhases = artifacts.require("./NodePhases.sol");
 var nodeAllocation = artifacts.require("./NodeAllocation.sol");
 
-var Utils = require("./Utils"),
+var Utils = require("./utils"),
     BigNumber = require('bignumber.js');
 
 var precision = 100,

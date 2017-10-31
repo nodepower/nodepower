@@ -69,7 +69,6 @@ contract ERC20 is Ownable {
     }
 
     /* internal balances */
-
     function setBalance(address _holder, uint256 _amount) internal {
         balances[_holder] = _amount;
     }

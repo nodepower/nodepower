@@ -1,0 +1,27 @@
+{
+  "name": "node.contract",
+  "version": "0.0.1",
+  "private": true,
+  "dependencies": {
+    "bignumber.js": "^4.1.0",
+    "coveralls": "^3.0.0",
+    "ethereumjs-abi": "^0.6.4",
+    "ethereumjs-testrpc": "^4.1.3",
+    "husky": "^0.14.3",
+    "solhint": "^1.1.7",
+    "solidity-coverage": "^0.2.7"
+  },
+  "scripts": {
+    "precommit": "npm run lint && npm run test && npm run coverage",
+    "pretest": "node ./node_modules/ethereumjs-testrpc/build/cli.node.js > /dev/null 2>&1 &",
+    "test": "truffle test",
+    "posttest": "ps | grep ethereumjs-testrpc | grep -v grep | awk '{print $1}' | xargs -J % kill %",
+    "coverage": "./node_modules/.bin/solidity-coverage",
+    "lint": "node ./node_modules/solhint/solhint.js contracts/*.sol"
+  },
+  "standard": {
+    "globals": [
+      "web3"
+    ]
+  }
+}
