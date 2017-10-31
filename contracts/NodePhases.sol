@@ -393,14 +393,14 @@ contract NodePhases is usingOraclize, Ownable {
         if (_currentPhase == 0) {
             uint8 length = nodeAllocation.getPreICOLength();
             require(length > 0);
-
-            uint256 amount = this.balance;
+            uint256 totalAmount = this.balance;
             for (uint8 i = 0; i < length; i++) {
+                uint256 amount = totalAmount.mul(nodeAllocation.getPreICOPercentage(i)).div(100);
                 if ((i + 1) == length) {
-                    nodeAllocation.getPreICOAddress(i).transfer(this.balance);
+                    amount = this.balance;
                 }
-                else {
-                    nodeAllocation.getPreICOAddress(i).transfer(amount.mul(nodeAllocation.getPreICOPercentage(i)).div(100));
+                if (amount > 0) {
+                    nodeAllocation.getPreICOAddress(i).transfer(amount);
                 }
             }
         }
@@ -418,19 +418,16 @@ contract NodePhases is usingOraclize, Ownable {
     }
 
     function allocateICOEthers() internal returns (bool) {
-        if (lastDistributedAmount == node.totalSupply()) {
-            return false;
-        }
-
         uint8 length = nodeAllocation.getICOLength();
         require(length > 0);
-        uint256 amount = this.balance;
+        uint256 totalAmount = this.balance;
         for (uint8 i = 0; i < length; i++) {
+            uint256 amount = totalAmount.mul(nodeAllocation.getICOPercentage(i)).div(100);
             if ((i + 1) == length) {
-                nodeAllocation.getICOAddress(i).transfer(this.balance);
+                amount = this.balance;
             }
-            else {
-                nodeAllocation.getICOAddress(i).transfer(amount.mul(nodeAllocation.getICOPercentage(i)).div(100));
+            if (amount > 0) {
+                nodeAllocation.getICOAddress(i).transfer(amount);
             }
         }
 
@@ -443,7 +440,6 @@ contract NodePhases is usingOraclize, Ownable {
             uint256 amount = node.maxSupply().mul(2).div(100);
             uint256 mintedAmount = node.mint(nodeAllocation.bountyAddress(), amount);
             require(mintedAmount == amount);
-            lastDistributedAmount = node.maxSupply();
         }
     }
 
