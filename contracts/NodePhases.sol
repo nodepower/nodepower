@@ -186,7 +186,7 @@ contract NodePhases is usingOraclize, Ownable {
         return uint256(0);
     }
 
-    function getCurrentPhase(uint256 _time) public returns (uint8) {
+    function getCurrentPhase(uint256 _time) public constant returns (uint8) {
         if (_time == 0) {
             return uint8(phases.length);
         }
