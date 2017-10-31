@@ -149,7 +149,46 @@ contract('Node', function (accounts) {
             .catch(Utils.receiptShouldSucceed)
             .then(() => Utils.balanceShouldEqualTo(token, accounts[1], 1000))
             .then(() => Utils.balanceShouldEqualTo(token, accounts[0], 9000))
+    })
 
+    it('check buyBack', async function () {
+        let phases = await nodePhases.new(
+            token.address,
+            new BigNumber(10).mul(precision),
+            new BigNumber(3283559600000000),
+            new BigNumber(750000).mul(precision),
+            now - 3600 * 24 * 3,
+            now - 3600 * 24 * 2,
+            new BigNumber(1000000).mul(precision),
+            new BigNumber(9800000).mul(precision),
+            now - 3600 * 24,
+            now - 3600
+        )
+
+        await token.setNodePhases(phases.address)
+
+        await token.addMinter(phases.address);
+
+        let transferFrozen = await token.transferFrozen.call()
+        assert.equal(transferFrozen.valueOf(), true, 'transferFrozen is not equal')
+
+        await token.unfreeze()
+            .then(() => Utils.balanceShouldEqualTo(token, token.address, 0))
+            .then(() => Utils.balanceShouldEqualTo(token, accounts[0], 0))
+
+        transferFrozen = await token.transferFrozen.call()
+        assert.equal(transferFrozen.valueOf(), false, 'transferFrozen is not equal')
+
+        await token.mint(accounts[0], 10000)
+            .then(() => Utils.balanceShouldEqualTo(token, accounts[0], 10000))
+
+        let amount = await token.buyBack.call(accounts[0])
+        assert.equal(amount.valueOf(), 10000, 'amount is not equal')
+
+        await token.buyBack(accounts[0])
+            .then(Utils.receiptShouldSucceed)
+            .then(() => Utils.balanceShouldEqualTo(token, accounts[0], 0))
+            .then(() => Utils.balanceShouldEqualTo(token, token.address, amount))
     })
 
 });

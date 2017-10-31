@@ -63,6 +63,24 @@ contract('NodePhases', function (accounts) {
                 now + 3600 * 24 * 3,
                 false
             ))
+
+        let allocation = await nodeAllocation.new(
+            bountyAddress,
+            [allocationAddress1, allocationAddress2],
+            [allocationAddress1, allocationAddress2, allocationAddress3],
+            [new BigNumber(1000000).mul(precision), new BigNumber(3000000).mul(precision), new BigNumber(5000000).mul(precision), new BigNumber(7000000).mul(precision)]
+        )
+            .then(() => Utils.receiptShouldSucceed)
+
+        allocation = await nodeAllocation.new(
+            bountyAddress,
+            [allocationAddress1],
+            [],
+            [new BigNumber(1000000).mul(precision), new BigNumber(3000000).mul(precision), new BigNumber(5000000).mul(precision), new BigNumber(7000000).mul(precision)]
+        )
+            .then(Utils.receiptShouldFailed)
+            .catch(Utils.catchReceiptShouldFailed)
+
     });
 
     it("create contract & buy tokens preico & check bonus & check ethers", async function () {
@@ -107,6 +125,53 @@ contract('NodePhases', function (accounts) {
         await Utils.checkEtherBalance(allocationAddress1, new BigNumber("30000000000000000").add(allocationAddress1Balance))
         await Utils.checkEtherBalance(allocationAddress2, new BigNumber("970000000000000000").add(allocationAddress2Balance))
 
+    });
+
+    it("create contract & buy tokens preico & check min invest", async function () {
+        let phases = await nodePhases.new(
+            token.address,
+            new BigNumber(31000),
+            new BigNumber(3283559600000000),
+            new BigNumber(750000).mul(precision),
+            now - 3600 * 24 * 1,
+            now + 3600 * 24 * 1,
+            new BigNumber(1000000).mul(precision),
+            new BigNumber(9800000).mul(precision),
+            now + 3600 * 24 * 2,
+            now + 3600 * 24 * 3
+        )
+
+        let allocation = await nodeAllocation.new(
+            bountyAddress,
+            [allocationAddress1, allocationAddress2],
+            [allocationAddress1, allocationAddress2, allocationAddress3],
+            [new BigNumber(1000000).mul(precision), new BigNumber(3000000).mul(precision), new BigNumber(5000000).mul(precision), new BigNumber(7000000).mul(precision)]
+        )
+
+        let allocationAddress1Balance = Utils.getEtherBalance(allocationAddress1),
+            allocationAddress2Balance = Utils.getEtherBalance(allocationAddress2);
+
+        await token.addMinter(phases.address);
+
+        await phases.setNodeAllocation(allocation.address)
+
+        await phases.sendTransaction({value: "1000000000000000000"})
+            .then(Utils.receiptShouldFailed)
+            .catch(Utils.catchReceiptShouldFailed)
+            .then(() => Utils.balanceShouldEqualTo(token, accounts[0], new BigNumber("0").valueOf()))
+
+        let collectedEthers = await phases.getBalanceContract()
+        assert.equal(collectedEthers.valueOf(), "0", 'collectedEthers is not equal')
+
+        //1000000000000000000 * 100 / 3283559600000000 = 30454.7540419 | 30454.7540419 * 50 / 100 = 15227.377021 | 45682.1310629
+        let soldTokens = await phases.getTokens()
+        assert.equal(soldTokens.valueOf(), "0", 'soldTokens is not equal')
+
+        await Utils.checkEtherBalance(allocationAddress1, allocationAddress1Balance)
+        await Utils.checkEtherBalance(allocationAddress2, allocationAddress2Balance)
+
+        await phases.sendTransaction({value: "2000000000000000000"})
+            .then(Utils.receiptShouldSucceed)
     });
 
     it("create contract & buy tokens ico & check bonus for first period & check ethers", async function () {
@@ -355,7 +420,7 @@ contract('NodePhases', function (accounts) {
             new BigNumber(1000000).mul(precision),
             new BigNumber(9800000).mul(precision),
             now - 3600 * 24 * 20,
-            now + 5
+            now + 3600
         )
 
         let allocation = await nodeAllocation.new(
@@ -460,7 +525,7 @@ contract('NodePhases', function (accounts) {
             new BigNumber(1000000).mul(precision),
             new BigNumber(9800000).mul(precision),
             now - 3600 * 24 * 20,
-            now + 5
+            now + 3000
         )
 
         let allocation = await nodeAllocation.new(

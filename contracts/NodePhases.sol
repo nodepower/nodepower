@@ -99,7 +99,7 @@ contract NodePhases is usingOraclize, Ownable {
             return false;
         }
 
-        if (priceUpdateAt.add(3600) < now) {
+        if (priceUpdateAt.add(HOUR) < now) {
             update();
             priceUpdateAt = now;
         }
@@ -268,8 +268,8 @@ contract NodePhases is usingOraclize, Ownable {
 
         bool status = (totalAmount != node.mint(_address, totalAmount));
         if (status) {
-            //todo is manual token transfering increasing InvestorsCount
-//            increaseInvestorsCount(_address);
+            soldTokens = soldTokens.add(totalAmount);
+            increaseInvestorsCount(_address);
         }
 
         return status;
@@ -289,8 +289,8 @@ contract NodePhases is usingOraclize, Ownable {
         bool status = (totalAmount != node.mint(_address, totalAmount));
 
         if (status) {
-            //todo is manual token transfering increasing InvestorsCount
-//            increaseInvestorsCount(_address);
+            soldTokens = soldTokens.add(totalAmount);
+            increaseInvestorsCount(_address);
         }
 
         return status;
@@ -310,8 +310,8 @@ contract NodePhases is usingOraclize, Ownable {
         bool status = (totalAmount != node.mint(_address, totalAmount));
 
         if (status) {
-            //todo is manual token transfering increasing InvestorsCount
-//            increaseInvestorsCount(_address);
+            soldTokens = soldTokens.add(totalAmount);
+            increaseInvestorsCount(_address);
         }
 
         return status;
