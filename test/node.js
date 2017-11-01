@@ -145,10 +145,28 @@ contract('Node', function (accounts) {
             .then(() => Utils.balanceShouldEqualTo(token, accounts[1], 1000))
             .then(() => Utils.balanceShouldEqualTo(token, accounts[0], 9000))
 
-        await token.transferFrom(accounts[0], accounts[1], 1000)
-            .catch(Utils.receiptShouldSucceed)
+        await token.transferFrom(accounts[0], accounts[1], 1000, {from: accounts[1]})
+            .then(Utils.receiptShouldSucceed)
             .then(() => Utils.balanceShouldEqualTo(token, accounts[1], 1000))
             .then(() => Utils.balanceShouldEqualTo(token, accounts[0], 9000))
+
+        let checkAllowance = await token.allowance.call(accounts[0], accounts[1])
+        assert.equal(checkAllowance.valueOf(), 0, "allowance is not equal")
+
+        await token.approve(accounts[1], 1000)
+
+        checkAllowance = await token.allowance.call(accounts[0], accounts[1])
+        assert.equal(checkAllowance.valueOf(), 1000, "allowance is not equal")
+
+        await token.transferFrom(accounts[0], accounts[1], 1001, {from: accounts[1]})
+            .then(Utils.receiptShouldSucceed)
+            .then(() => Utils.balanceShouldEqualTo(token, accounts[1], 1000))
+            .then(() => Utils.balanceShouldEqualTo(token, accounts[0], 9000))
+
+        await token.transferFrom(accounts[0], accounts[1], 1000, {from: accounts[1]})
+            .then(Utils.receiptShouldSucceed)
+            .then(() => Utils.balanceShouldEqualTo(token, accounts[1], 2000))
+            .then(() => Utils.balanceShouldEqualTo(token, accounts[0], 8000))
     })
 
     it('check buyBack', async function () {
