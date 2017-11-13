@@ -39,7 +39,7 @@ contract Node is MintingERC20 {
     }
 
     function buyBack(address _address) public onlyMinters returns (uint256) {
-        require(address(_address) != 0x0);
+        require(address(_address) != address(0));
 
         uint256 balance = balanceOf(_address);
         setBalance(_address, 0);

@@ -32,7 +32,7 @@ contract NodeAllocation is Ownable {
         address[] _icoAddresses, //according - 3% 47% and 50%
         uint256[] _distributionThresholds
     ) {
-        require((address(_bountyAddress) != 0x0) && _distributionThresholds.length > 0);
+        require((address(_bountyAddress) != address(0)) && _distributionThresholds.length > 0);
 
         bountyAddress = _bountyAddress;
         distributionThresholds = _distributionThresholds;
