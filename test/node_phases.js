@@ -709,9 +709,9 @@ contract('NodePhases', function (accounts) {
 
         await phases.setNodeAllocation(allocation.address)
 
-        await phases.sendToAddressWithTime(accounts[2], 1000, now + 3600 * 24 * 28)
+        await phases.sendToAddressWithTime(accounts[2], 1000, now)
             .then(() => Utils.receiptShouldSucceed)
-            .then(() => Utils.balanceShouldEqualTo(token, accounts[2], new BigNumber("1000").valueOf()))
+            .then(() => Utils.balanceShouldEqualTo(token, accounts[2], new BigNumber("1150").valueOf()))
 
 
     });

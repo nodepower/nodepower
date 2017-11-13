@@ -75,8 +75,8 @@ contract NodePhases is usingOraclize, Ownable {
 
         priceUpdateAt = now;
 
-        oraclize_setNetwork(networkID_auto);
-        oraclize = OraclizeI(OAR.getAddress());
+//        oraclize_setNetwork(networkID_auto);
+//        oraclize = OraclizeI(OAR.getAddress());
     }
 
     function() public payable {
@@ -156,14 +156,7 @@ contract NodePhases is usingOraclize, Ownable {
             return false;
         }
 
-        uint256 totalAmount = _tokens.add(getBonusAmount(_tokens, _time));
-
-        require(totalAmount == node.mint(_address, totalAmount));
-
-        soldTokens = soldTokens.add(totalAmount);
-        increaseInvestorsCount(_address);
-
-        return true;
+        return sendToAddressWithBonus(_address, _tokens, getBonusAmount(_tokens, _time));
     }
 
     function sendToAddressWithBonus(
@@ -177,10 +170,13 @@ contract NodePhases is usingOraclize, Ownable {
 
         uint256 totalAmount = _tokens.add(_bonus);
 
+        if (getTokens().add(totalAmount) > node.maxSupply()) {
+            return false;
+        }
+
         require(totalAmount == node.mint(_address, totalAmount));
 
-        soldTokens = soldTokens.add(totalAmount);
-        increaseInvestorsCount(_address);
+        onSuccessfulBuy(_address, 0, totalAmount, 0);
 
         return true;
     }
@@ -202,7 +198,7 @@ contract NodePhases is usingOraclize, Ownable {
     }
 
     function isSucceed(uint8 phaseId) public returns (bool) {
-        if (phases.length < phaseId) {
+        if (phases.length <= phaseId) {
             return false;
         }
         Phase storage phase = phases[phaseId];
@@ -245,7 +241,7 @@ contract NodePhases is usingOraclize, Ownable {
     }
 
     function isFinished(uint8 phaseId) public constant returns (bool) {
-        if (phases.length < phaseId) {
+        if (phases.length <= phaseId) {
             return false;
         }
         Phase storage phase = phases[phaseId];
@@ -273,6 +269,24 @@ contract NodePhases is usingOraclize, Ownable {
         return uint8(phases.length);
     }
 
+    function getICOBonusAmount(uint256 _amount, uint256 _time) public returns (uint256) {
+        Phase storage ico = phases[1];
+        if (_time.sub(ico.since) < 11 * DAY) {// 11d since ico => reward 30%;
+            return _amount.mul(30).div(100);
+        }
+        if (_time.sub(ico.since) < 21 * DAY) {// 21d since ico => reward 20%
+            return _amount.mul(20).div(100);
+        }
+        if (_time.sub(ico.since) < 31 * DAY) {// 31d since ico => reward 15%
+            return _amount.mul(15).div(100);
+        }
+        if (_time.sub(ico.since) < 41 * DAY) {// 41d since ico => reward 10%
+            return _amount.mul(10).div(100);
+        }
+
+        return 0;
+    }
+
     function update() internal {
         if (oraclize_getPrice("URL") > this.balance) {
             NewOraclizeQuery("Oraclize query was NOT sent, please add some ETH to cover for the query fee");
@@ -289,7 +303,7 @@ contract NodePhases is usingOraclize, Ownable {
 
         uint8 currentPhase = getCurrentPhase(now);
 
-        if (phases.length < currentPhase) {
+        if (phases.length <= currentPhase) {
             return false;
         }
 
@@ -332,7 +346,7 @@ contract NodePhases is usingOraclize, Ownable {
     }
 
     function getTokensAmount(uint256 _value, uint8 _currentPhase) internal returns (uint256) {
-        if (_value == 0 || phases.length < _currentPhase) {
+        if (_value == 0 || phases.length <= _currentPhase) {
             return 0;
         }
 
@@ -353,7 +367,7 @@ contract NodePhases is usingOraclize, Ownable {
 
     function getBonusAmount(uint256 _amount, uint256 _time) internal returns (uint256) {
         uint8 currentPhase = getCurrentPhase(_time);
-        if (_amount == 0 || _time == 0 || phases.length < currentPhase) {
+        if (_amount == 0 || _time == 0 || phases.length <= currentPhase) {
             return 0;
         }
 
@@ -363,24 +377,6 @@ contract NodePhases is usingOraclize, Ownable {
 
         if (currentPhase == 1) {
             return getICOBonusAmount(_amount, _time);
-        }
-
-        return 0;
-    }
-
-    function getICOBonusAmount(uint256 _amount, uint256 _time) internal returns (uint256) {
-        Phase storage ico = phases[1];
-        if (_time.sub(ico.since) < 11 * DAY) {// 11d since ico => reward 30%;
-            return _amount.mul(30).div(100);
-        }
-        if (_time.sub(ico.since) < 21 * DAY) {// 21d since ico => reward 20%
-            return _amount.mul(20).div(100);
-        }
-        if (_time.sub(ico.since) < 31 * DAY) {// 31d since ico => reward 15%
-            return _amount.mul(15).div(100);
-        }
-        if (_time.sub(ico.since) < 41 * DAY) {// 41d since ico => reward 10%
-            return _amount.mul(10).div(100);
         }
 
         return 0;
