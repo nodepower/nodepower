@@ -356,6 +356,9 @@ contract('NodePhases', function (accounts) {
             .then(() => Utils.receiptShouldSucceed)
             .then(() => Utils.balanceShouldEqualTo(token, accounts[3], new BigNumber("28000").valueOf()))
 
+        let soldTokens = await phases.getTokens()
+        assert.equal(soldTokens.valueOf(), 15000 + 13000 + 28000, 'soldTokens is not equal')
+
         await phases.setCurrentRate(new BigNumber(3283559600000028))
 
         await Utils.getPhase(phases, 0)
@@ -566,6 +569,150 @@ contract('NodePhases', function (accounts) {
         console.log('account1Balance after refund000000', Utils.getEtherBalance(accounts[1]).valueOf());
 
         await Utils.balanceShouldEqualTo(token, accounts[1], new BigNumber("0").valueOf())
+
+    });
+
+    it("create contract & check Time-based bonus", async function () {
+        bountyAddress = accounts[5];
+        let phases = await nodePhases.new(
+            token.address,
+            new BigNumber(10).mul(precision),
+            new BigNumber(3300000000000000),
+            new BigNumber(750000).mul(precision),
+            now - 3600 * 24 * 63,
+            now - 3600 * 24 * 62,
+            new BigNumber(1000000).mul(precision),
+            new BigNumber(9800000).mul(precision),
+            now - (3600 * 24 * 30) - (3600 * 23),
+            now + 3600
+        )
+
+        let allocation = await nodeAllocation.new(
+            bountyAddress,
+            [allocationAddress1, allocationAddress2],
+            [allocationAddress1, allocationAddress2, allocationAddress3],
+            [new BigNumber(50000).mul(precision), new BigNumber(120000).mul(precision), new BigNumber(5000000).mul(precision), new BigNumber(7000000).mul(precision)]
+        )
+
+        await token.addMinter(phases.address);
+
+        await phases.setNodeAllocation(allocation.address)
+
+        await phases.sendTransaction({value: "1000000000000000000"})
+            .then(() => Utils.receiptShouldSucceed)
+            .then(() => Utils.balanceShouldEqualTo(token, accounts[0], new BigNumber("34848").valueOf()))
+
+        //1000000000000000000 * 100 / 3300000000000000 * 115/100 = 34848.4848484848484848
+        let soldTokens = await phases.getTokens()
+        assert.equal(soldTokens.valueOf(), "34848", 'soldTokens is not equal')
+
+        await phases.setPhase(
+            1,
+            now - (3600 * 24 * 40) - (3600 * 23),
+            now + 3600,
+            new BigNumber(3300000000000000),
+            new BigNumber(1000000).mul(precision),
+            new BigNumber(9800000).mul(precision),
+        )
+            .then(Utils.receiptShouldSucceed)
+
+        await phases.sendTransaction({value: "1000000000000000000"})
+            .then(() => Utils.receiptShouldSucceed)
+            .then(() => Utils.balanceShouldEqualTo(token, accounts[0], new BigNumber(34848 + 33333).valueOf()))
+
+        //1000000000000000000 * 100 / 3300000000000000 * 110/100 = 33333.3333333333333333
+        soldTokens = await phases.getTokens()
+        assert.equal(soldTokens.valueOf(), 34848 + 33333, 'soldTokens is not equal')
+
+        await phases.setPhase(
+            1,
+            now - 3600 * 24 * 41,
+            now + 3600,
+            new BigNumber(3300000000000000),
+            new BigNumber(1000000).mul(precision),
+            new BigNumber(9800000).mul(precision),
+        )
+            .then(Utils.receiptShouldSucceed)
+
+        await phases.sendTransaction({value: "1000000000000000000"})
+            .then(() => Utils.receiptShouldSucceed)
+            .then(() => Utils.balanceShouldEqualTo(token, accounts[0], new BigNumber(34848 + 33333 + 30303).valueOf()))
+
+        //1000000000000000000 * 100 / 3300000000000000 = 30303.0303030303030303
+        soldTokens = await phases.getTokens()
+        assert.equal(soldTokens.valueOf(), 34848 + 33333 + 30303, 'soldTokens is not equal')
+
+    });
+
+    it("create contract & check buy after hardCap", async function () {
+        let phases = await nodePhases.new(
+            token.address,
+            new BigNumber(10).mul(precision),
+            new BigNumber(3300000000000000),
+            new BigNumber(500),
+            now - 3600 * 24 * 63,
+            now - 3600 * 24 * 62,
+            new BigNumber(1000),
+            new BigNumber(40000),
+            now - (3600 * 24 * 30) - (3600 * 23),
+            now + 3600
+        )
+
+        let allocation = await nodeAllocation.new(
+            bountyAddress,
+            [allocationAddress1, allocationAddress2],
+            [allocationAddress1, allocationAddress2, allocationAddress3],
+            [new BigNumber(50000).mul(precision), new BigNumber(120000).mul(precision), new BigNumber(5000000).mul(precision), new BigNumber(7000000).mul(precision)]
+        )
+
+        await token.addMinter(phases.address);
+
+        await phases.setNodeAllocation(allocation.address)
+
+        await phases.sendTransaction({value: "1000000000000000000"})
+            .then(() => Utils.receiptShouldSucceed)
+            .then(() => Utils.balanceShouldEqualTo(token, accounts[0], new BigNumber("34848").valueOf()))
+
+        //1000000000000000000 * 100 / 3300000000000000 * 115/100 = 34848.4848484848484848
+        let soldTokens = await phases.getTokens()
+        assert.equal(soldTokens.valueOf(), "34848", 'soldTokens is not equal')
+
+        await phases.sendTransaction({value: "1000000000000000000"})
+            .then(Utils.receiptShouldFailed)
+            .catch(Utils.catchReceiptShouldFailed)
+            .then(() => Utils.balanceShouldEqualTo(token, accounts[0], new BigNumber("34848").valueOf()))
+
+    });
+
+    it("create contract & check getBonusAmount through sendWithTime", async function () {
+        let phases = await nodePhases.new(
+            token.address,
+            new BigNumber(10).mul(precision),
+            new BigNumber(3300000000000000),
+            new BigNumber(500),
+            now - 3600 * 24 * 63,
+            now - 3600 * 24 * 62,
+            new BigNumber(1000),
+            new BigNumber(40000),
+            now - (3600 * 24 * 30) - (3600 * 23),
+            now + 3600
+        )
+
+        let allocation = await nodeAllocation.new(
+            bountyAddress,
+            [allocationAddress1, allocationAddress2],
+            [allocationAddress1, allocationAddress2, allocationAddress3],
+            [new BigNumber(50000).mul(precision), new BigNumber(120000).mul(precision), new BigNumber(5000000).mul(precision), new BigNumber(7000000).mul(precision)]
+        )
+
+        await token.addMinter(phases.address);
+
+        await phases.setNodeAllocation(allocation.address)
+
+        await phases.sendToAddressWithTime(accounts[2], 1000, now + 3600 * 24 * 28)
+            .then(() => Utils.receiptShouldSucceed)
+            .then(() => Utils.balanceShouldEqualTo(token, accounts[2], new BigNumber("1000").valueOf()))
+
 
     });
 

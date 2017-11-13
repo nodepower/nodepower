@@ -1,8 +1,7 @@
-pragma solidity ^0.4.13;
+pragma solidity 0.4.15;
 
-
-import './Ownable.sol';
-import './SafeMath.sol';
+import "./Ownable.sol";
+import "./SafeMath.sol";
 
 
 contract NodeAllocation is Ownable {
@@ -30,7 +29,7 @@ contract NodeAllocation is Ownable {
     function NodeAllocation(
         address _bountyAddress, //2%
         address[] _preICOAddresses, //according - 3% and 97%
-        address[] _ICOAddresses, //according - 3% 47% and 50%
+        address[] _icoAddresses, //according - 3% 47% and 50%
         uint256[] _distributionThresholds
     ) {
         require((address(_bountyAddress) != 0x0) && _distributionThresholds.length > 0);
@@ -39,31 +38,10 @@ contract NodeAllocation is Ownable {
         distributionThresholds = _distributionThresholds;
 
         require(setPreICOAllocation(_preICOAddresses) == true);
-        require(setICOAllocation(_ICOAddresses) == true);
+        require(setICOAllocation(_icoAddresses) == true);
     }
 
-    function setPreICOAllocation(address[] _addresses) internal returns (bool) {
-        if (_addresses.length < 2) {
-            return false;
-        }
-        preIcoAllocation.push(PreICOAllocation(3, _addresses[0]));
-        preIcoAllocation.push(PreICOAllocation(97, _addresses[1]));
-
-        return true;
-    }
-
-    function setICOAllocation(address[] _addresses) internal returns (bool) {
-        if (_addresses.length < 3) {
-            return false;
-        }
-        icoAllocation.push(ICOAllocation(3, _addresses[0]));
-        icoAllocation.push(ICOAllocation(47, _addresses[1]));
-        icoAllocation.push(ICOAllocation(50, _addresses[2]));
-
-        return true;
-    }
-
-    function getPreICOAddress(uint8 _id) public returns (address)  {
+    function getPreICOAddress(uint8 _id) public returns (address) {
         PreICOAllocation storage allocation = preIcoAllocation[_id];
 
         return allocation.destAddress;
@@ -103,4 +81,24 @@ contract NodeAllocation is Ownable {
         return uint8(distributionThresholds.length);
     }
 
+    function setPreICOAllocation(address[] _addresses) internal returns (bool) {
+        if (_addresses.length < 2) {
+            return false;
+        }
+        preIcoAllocation.push(PreICOAllocation(3, _addresses[0]));
+        preIcoAllocation.push(PreICOAllocation(97, _addresses[1]));
+
+        return true;
+    }
+
+    function setICOAllocation(address[] _addresses) internal returns (bool) {
+        if (_addresses.length < 3) {
+            return false;
+        }
+        icoAllocation.push(ICOAllocation(3, _addresses[0]));
+        icoAllocation.push(ICOAllocation(47, _addresses[1]));
+        icoAllocation.push(ICOAllocation(50, _addresses[2]));
+
+        return true;
+    }
 }

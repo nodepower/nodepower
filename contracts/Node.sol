@@ -1,8 +1,9 @@
-pragma solidity ^0.4.13;
+pragma solidity 0.4.15;
 
-import './MintingERC20.sol';
-import './SafeMath.sol';
-import './NodePhases.sol';
+import "./MintingERC20.sol";
+import "./SafeMath.sol";
+import "./NodePhases.sol";
+
 
 contract Node is MintingERC20 {
 
@@ -20,7 +21,7 @@ contract Node is MintingERC20 {
         uint8 _precision,
         bool _locked
     ) MintingERC20(0, _maxSupply, _tokenName, _precision, _tokenSymbol, false, _locked) {
-        standard = 'Node 0.1';
+        standard = "Node 0.1";
     }
 
     function setLocked(bool _locked) public onlyOwner {

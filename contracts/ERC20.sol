@@ -1,9 +1,13 @@
-pragma solidity ^0.4.13;
+pragma solidity 0.4.15;
 
-import './Ownable.sol';
-import './SafeMath.sol';
+import "./Ownable.sol";
+import "./SafeMath.sol";
 
-contract tokenRecipient { function receiveApproval(address _from, uint256 _value, address _token, bytes _extraData); }
+
+contract TokenRecipient {
+    function receiveApproval(address _from, uint256 _value, address _token, bytes _extraData) public;
+}
+
 
 contract ERC20 is Ownable {
 
@@ -47,14 +51,13 @@ contract ERC20 is Ownable {
         bool _transferAllSupplyToOwner,
         bool _locked
     ) {
-        standard = 'ERC20 0.1';
+        standard = "ERC20 0.1";
 
         initialSupply = _initialSupply;
 
         if (_transferAllSupplyToOwner) {
             setBalance(msg.sender, initialSupply);
-        }
-        else {
+        } else {
             setBalance(this, initialSupply);
         }
 
@@ -66,33 +69,6 @@ contract ERC20 is Ownable {
         // Amount of decimals for display purposes
         locked = _locked;
         creationBlock = block.number;
-    }
-
-    /* internal balances */
-    function setBalance(address _holder, uint256 _amount) internal {
-        balances[_holder] = _amount;
-    }
-
-    function transferInternal(address _from, address _to, uint256 _value) internal returns (bool success) {
-        if (_value == 0) {
-            Transfer(_from, _to, 0);
-            return true;
-        }
-
-        if (balances[_from] < _value) {
-            return false;
-        }
-
-        if (balances[_to].add(_value) <= balances[_to]) {
-            return false;
-        }
-
-        setBalance(_from, balances[_from].sub(_value));
-        setBalance(_to, balances[_to].add(_value));
-        
-        Transfer(_from, _to, _value);
-
-        return true;
     }
 
     /* public methods */
@@ -115,7 +91,7 @@ contract ERC20 is Ownable {
     }
 
     function approve(address _spender, uint256 _value) public returns (bool success) {
-        if(locked) {
+        if (locked) {
             return false;
         }
 
@@ -130,7 +106,7 @@ contract ERC20 is Ownable {
             return false;
         }
 
-        tokenRecipient spender = tokenRecipient(_spender);
+        TokenRecipient spender = TokenRecipient(_spender);
 
         if (approve(_spender, _value)) {
             spender.receiveApproval(msg.sender, _value, this, _extraData);
@@ -155,4 +131,28 @@ contract ERC20 is Ownable {
 
         return _success;
     }
+
+    /* internal balances */
+    function setBalance(address _holder, uint256 _amount) internal {
+        balances[_holder] = _amount;
+    }
+
+    function transferInternal(address _from, address _to, uint256 _value) internal returns (bool success) {
+        if (_value == 0) {
+            Transfer(_from, _to, 0);
+            return true;
+        }
+
+        if (balances[_from] < _value) {
+            return false;
+        }
+
+        setBalance(_from, balances[_from].sub(_value));
+        setBalance(_to, balances[_to].add(_value));
+
+        Transfer(_from, _to, _value);
+
+        return true;
+    }
+
 }

@@ -1,3 +1,4 @@
+/* solhint-disable */
 // <ORACLIZE_API>
 /*
 Copyright (c) 2015-2016 Oraclize SRL
@@ -1032,3 +1033,4 @@ return safer_ecrecover(hash, v, r, s);
 
 }
 // </ORACLIZE_API>
+/* solhint-enable */

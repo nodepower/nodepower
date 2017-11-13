@@ -1,7 +1,8 @@
-pragma solidity ^0.4.13;
+pragma solidity 0.4.15;
 
 import "./ERC20.sol";
-import './SafeMath.sol';
+import "./SafeMath.sol";
+
 
 /*
 This contract manages the minters and the modifier to allow mint to happen only if called by minters
